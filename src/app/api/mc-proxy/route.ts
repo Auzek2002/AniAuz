@@ -33,24 +33,34 @@ function resolveUrl(url: string, base: URL): string {
   return dir + url;
 }
 
-// Rewrite a raw M3U8 manifest so every segment and key URI is an absolute URL.
-// The player's XHR interceptor will then catch those absolute CDN URLs and
-// route them back through this proxy with the correct Referer.
-function rewriteM3u8(text: string, baseUrl: string): string {
+// Rewrite a raw M3U8 manifest so every segment, key, and sub-manifest URI
+// goes through our proxy endpoint directly.  This avoids any dependency on
+// the browser-side fetch/XHR interceptor for media content, works for any
+// CDN domain megacloud uses, and is CORS-safe (same-origin to our domain).
+function rewriteM3u8(
+  text: string,
+  baseUrl: string,
+  proxyBase: string,
+  referer: string,
+): string {
   const base = new URL(baseUrl);
+
+  function toProxy(url: string): string {
+    const abs = resolveUrl(url, base);
+    return `${proxyBase}?url=${encodeURIComponent(abs)}&ref=${encodeURIComponent(referer)}`;
+  }
+
   return text.split("\n").map(line => {
     const trimmed = line.trim();
     if (!trimmed) return line;
 
     if (trimmed.startsWith("#")) {
-      // Rewrite URI="..." inside tags (encryption keys, etc.)
-      return line.replace(/URI="([^"]+)"/g, (_, uri) =>
-        `URI="${resolveUrl(uri, base)}"`
-      );
+      // Rewrite URI="..." inside tags (encryption keys, sub-manifests, etc.)
+      return line.replace(/URI="([^"]+)"/g, (_, uri) => `URI="${toProxy(uri)}"`);
     }
 
-    // Segment / sub-manifest line — make absolute
-    return resolveUrl(trimmed, base);
+    // Segment / sub-manifest line
+    return toProxy(trimmed);
   }).join("\n");
 }
 
@@ -110,10 +120,12 @@ async function handleRequest(request: Request): Promise<NextResponse> {
 
     const contentType = res.headers.get("content-type") || "application/octet-stream";
 
-    // Rewrite M3U8 manifests so segment URLs become absolute CDN URLs
+    // Rewrite M3U8 manifests so all segment/key/sub-manifest URLs go through
+    // our proxy directly (same-origin, no CORS issues on Vercel).
     if (looksLikeM3u8(url, contentType)) {
-      const text     = await res.text();
-      const rewritten = rewriteM3u8(text, url);
+      const text      = await res.text();
+      const proxyBase = `${reqUrl.origin}/api/mc-proxy`;
+      const rewritten = rewriteM3u8(text, url, proxyBase, ref);
       return new NextResponse(rewritten, {
         status: 200,
         headers: {
