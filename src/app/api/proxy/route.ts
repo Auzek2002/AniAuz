@@ -35,8 +35,13 @@ function rewriteM3u8(content: string, baseUrl: string, referer: string, origin: 
         return `URI="${buildProxyUrl(abs, referer, origin)}"`;
       });
     }
-    // Segment URLs — route through Cloudflare Worker if configured
     const abs = resolveUrl(trimmed, base);
+    // Sub-manifests (quality playlists, e.g. 720p/index.m3u8) must come back through
+    // the Vercel proxy so their segment URLs get rewritten too.
+    // Only actual media segments (.ts, .m4s, etc.) go straight to the CF Worker.
+    if (abs.includes(".m3u8")) {
+      return buildProxyUrl(abs, referer, origin);
+    }
     return buildSegmentUrl(abs, referer, origin);
   }).join("\n");
 }
