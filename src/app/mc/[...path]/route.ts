@@ -64,31 +64,25 @@ function buildInjector(apiProxyBase: string, ref: string, mcUrl: string): string
      page as Referer since the requests originate from within that embed page. */
   var R=${JSON.stringify(mcUrl)};
   var MC=${JSON.stringify(MEGACLOUD_ORIGIN)};
+  /* Our own proxy host — never re-proxy requests already going to our server */
+  var ownHost=new URL(P).hostname;
 
-  function isMC(h){
-    return h==='megacloud.blog'
-      ||h.endsWith('.megacloud.blog')
-      ||h.endsWith('.megacloud.net')
-      ||h.endsWith('.megacloud.tv')
-      ||h.endsWith('.megacloud.co');
-  }
   function px(u){
     if(typeof u!=='string') return u;
     try{
       var parsed=new URL(u);
       var h=parsed.hostname;
-      /* Megacloud CDN/API domains — proxy through our server */
-      if(isMC(h)){
-        return P+'?url='+encodeURIComponent(u)+'&ref='+encodeURIComponent(R);
-      }
-      /* Same-origin requests that are actually megacloud API calls
-         (happens when window.location spoof fails and player uses location.origin) */
+      /* Skip requests already destined for our proxy (avoid double-proxying) */
+      if(h===ownHost) return u;
+      /* Same-origin requests that are actually megacloud embed API calls */
       var path=parsed.pathname;
       if((h===location.hostname||h==='localhost'||h==='127.0.0.1')
           &&(path.startsWith('/embed-2/')||path.startsWith('/embed/'))){
         return P+'?url='+encodeURIComponent(MC+path+parsed.search)+'&ref='+encodeURIComponent(R);
       }
-      return u;
+      /* Proxy ALL other cross-origin requests — megacloud may serve M3U8/segments
+         from any CDN domain; proxying all of them avoids CORS failures. */
+      return P+'?url='+encodeURIComponent(u)+'&ref='+encodeURIComponent(R);
     }catch(e){
       /* Relative URL — resolve against megacloud.blog */
       if(typeof u==='string'&&u.startsWith('/')){

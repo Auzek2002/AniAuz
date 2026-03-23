@@ -17,10 +17,19 @@ export const maxDuration = 30;
 
 const WATCH_DOMAIN = process.env.ANIWATCH_DOMAIN || "aniwatchtv.to";
 
-const ALLOWED_HOSTS = ["megacloud.blog", "megacloud.net", "megacloud.tv", "megacloud.co"];
-
+// Block local/private addresses to prevent SSRF; allow any external CDN host
+// since megacloud may serve M3U8 segments from arbitrary CDN domains.
 function isAllowed(hostname: string): boolean {
-  return ALLOWED_HOSTS.some(h => hostname === h || hostname.endsWith("." + h));
+  if (
+    hostname === "localhost" ||
+    /^127\./.test(hostname) ||
+    /^10\./.test(hostname) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(hostname) ||
+    /^192\.168\./.test(hostname) ||
+    hostname.endsWith(".internal") ||
+    hostname.endsWith(".local")
+  ) return false;
+  return true;
 }
 
 // ── M3U8 rewriting ────────────────────────────────────────────────────────────
