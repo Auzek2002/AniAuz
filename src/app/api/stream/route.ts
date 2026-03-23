@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { HiAnime } from "aniwatch";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 type AnimeServers = "hd-1" | "hd-2" | "megacloud" | "streamsb" | "streamtape";
 

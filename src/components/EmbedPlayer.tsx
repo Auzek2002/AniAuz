@@ -10,21 +10,32 @@ interface EmbedPlayerProps {
   title?: string;
 }
 
-// AniList-ID-based fallbacks — used when HiAnime embed is unavailable
+// AniList-ID-based fallbacks — work on any domain without restriction
 const FALLBACK_SERVERS = [
   { name: "Server 2", url: (id: number, ep: number) => `https://player.smashy.stream/anime/${id}?ep=${ep}` },
   { name: "Server 3", url: (id: number, ep: number) => `https://www.2embed.skin/embed/anime/${id}/${ep}` },
 ];
 
+// Megacloud (Server 1) whitelists localhost and aniwatchtv.to as embedding origins.
+// On any other domain (Vercel, custom domains) it blocks the embed.
+function isHiAnimeEmbedAllowed(): boolean {
+  if (typeof window === "undefined") return false;
+  const h = window.location.hostname;
+  return h === "localhost" || h === "127.0.0.1";
+}
+
 export default function EmbedPlayer({ anilistId, episodeNumber, hianimeEpisodeId, title }: EmbedPlayerProps) {
   const [embedLink, setEmbedLink] = useState<string | null>(null);
   const [embedLoading, setEmbedLoading] = useState(false);
-  const [serverIdx, setServerIdx] = useState(0); // 0 = HiAnime embed, 1+ = fallbacks
+  // On non-localhost, start at fallback server 0 (index into FALLBACK_SERVERS)
+  const [serverIdx, setServerIdx] = useState(0);
   const [key, setKey] = useState(0);
 
-  // Fetch HiAnime megacloud embed link whenever the episode changes
+  const hiAnimeAllowed = isHiAnimeEmbedAllowed();
+
+  // Fetch HiAnime megacloud embed link only when it can actually be displayed
   useEffect(() => {
-    if (!hianimeEpisodeId) return;
+    if (!hianimeEpisodeId || !hiAnimeAllowed) return;
     setEmbedLink(null);
     setEmbedLoading(true);
     setServerIdx(0);
@@ -35,20 +46,20 @@ export default function EmbedPlayer({ anilistId, episodeNumber, hianimeEpisodeId
       .then(data => { if (data.link) setEmbedLink(data.link); })
       .catch(() => {})
       .finally(() => setEmbedLoading(false));
-  }, [hianimeEpisodeId]);
+  }, [hianimeEpisodeId, hiAnimeAllowed]);
 
-  // Reset fallback servers when episode/anime changes (no HiAnime id case)
+  // Reset when episode/anime changes
   useEffect(() => {
-    if (hianimeEpisodeId) return;
     setServerIdx(0);
     setKey(k => k + 1);
-  }, [anilistId, episodeNumber, hianimeEpisodeId]);
+    if (!hiAnimeAllowed) setEmbedLink(null);
+  }, [anilistId, episodeNumber, hiAnimeAllowed]);
 
-  // Build server list: HiAnime embed first (if fetched), then AniList-based fallbacks
+  // Build server list: HiAnime embed first (only on localhost), then AniList-based fallbacks
   const servers = [
-    ...(embedLink ? [{ name: "Server 1 (HiAnime)", src: embedLink }] : []),
+    ...(hiAnimeAllowed && embedLink ? [{ name: "Server 1 (HiAnime)", src: embedLink }] : []),
     ...FALLBACK_SERVERS.map((s, i) => ({
-      name: embedLink ? s.name : `Server ${i + 1}`,
+      name: hiAnimeAllowed && embedLink ? s.name : `Server ${i + 1}`,
       src: s.url(anilistId, episodeNumber),
     })),
   ];

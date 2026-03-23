@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { Play, Star, Calendar, Clock, Tv, Users, ChevronLeft, Loader2, BookOpen, AlertCircle } from "lucide-react";
 import { AniListAnime } from "@/types";
 import EpisodeList from "@/components/EpisodeList";
+import EmbedPlayer from "@/components/EmbedPlayer";
 
 interface Episode { id: string; number: number; title?: string; }
 
@@ -31,13 +32,7 @@ export default function AnimePage() {
   const [loadingEpisodes, setLoadingEpisodes] = useState(false);
   const [episodeError, setEpisodeError]       = useState<string | null>(null);
 
-  const [selected, setSelected]       = useState<Episode | null>(null);
-  const [embedUrl, setEmbedUrl]       = useState<string | null>(null);
-  const [streamLoading, setStreamLoading] = useState(false);
-  const [streamError, setStreamError]     = useState<string | null>(null);
-
-  // Track the episode ID we last requested so stale responses are discarded
-  const pendingEpRef = useRef<string | null>(null);
+  const [selected, setSelected] = useState<Episode | null>(null);
 
   // ── Fetch AniList details ──────────────────────────────────────────────────
   useEffect(() => {
@@ -116,39 +111,9 @@ export default function AnimePage() {
     if (anime) loadEpisodes(anime);
   }, [anime, loadEpisodes]);
 
-  // ── Fetch stream when episode selected ────────────────────────────────────
+  // ── Select episode ─────────────────────────────────────────────────────────
   const selectEpisode = useCallback((ep: Episode) => {
     setSelected(ep);
-    setEmbedUrl(null);
-    setStreamError(null);
-
-    if (ep.id.startsWith("unavailable-")) {
-      setStreamError("No stream available for this episode.");
-      setTimeout(() => document.getElementById("player")?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
-      return;
-    }
-
-    pendingEpRef.current = ep.id;
-    setStreamLoading(true);
-
-    fetch(`/api/embedlink?ep=${encodeURIComponent(ep.id)}`)
-      .then(r => r.json())
-      .then((data: { link?: string; error?: string }) => {
-        if (pendingEpRef.current !== ep.id) return;
-        if (data.error || !data.link) {
-          setStreamError("Stream unavailable — try another episode.");
-        } else {
-          setEmbedUrl(data.link);
-        }
-      })
-      .catch(() => {
-        if (pendingEpRef.current !== ep.id) return;
-        setStreamError("Failed to load stream.");
-      })
-      .finally(() => {
-        if (pendingEpRef.current === ep.id) setStreamLoading(false);
-      });
-
     setTimeout(() => document.getElementById("player")?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
   }, []);
 
@@ -290,33 +255,12 @@ export default function AnimePage() {
               </div>
             </div>
 
-            {streamError ? (
-              <div className="relative w-full rounded-xl overflow-hidden bg-[#0a0a14] flex flex-col items-center justify-center gap-3 py-16">
-                <AlertCircle className="w-10 h-10 text-red-400" />
-                <p className="text-sm text-gray-400">{streamError}</p>
-              </div>
-            ) : streamLoading ? (
-              <div className="relative w-full rounded-xl overflow-hidden bg-black flex flex-col items-center justify-center gap-3 py-16" style={{ aspectRatio: "16/9" }}>
-                <Loader2 className="w-10 h-10 text-purple-400 animate-spin" />
-                <p className="text-sm text-gray-300">Loading stream...</p>
-              </div>
-            ) : embedUrl ? (
-              <div className="relative w-full rounded-xl overflow-hidden bg-black" style={{ aspectRatio: "16/9" }}>
-                <iframe
-                  key={embedUrl}
-                  src={embedUrl}
-                  className="w-full h-full"
-                  allowFullScreen
-                  allow="autoplay; fullscreen; picture-in-picture"
-                  style={{ border: "none" }}
-                />
-              </div>
-            ) : (
-              <div className="relative w-full rounded-xl overflow-hidden bg-[#0a0a14] flex flex-col items-center justify-center gap-3 py-16" style={{ aspectRatio: "16/9" }}>
-                <Play className="w-16 h-16 text-gray-600" />
-                <p className="text-gray-400 text-sm">Select an episode to start watching</p>
-              </div>
-            )}
+            <EmbedPlayer
+              anilistId={anime.id}
+              episodeNumber={selected.number}
+              hianimeEpisodeId={selected.id.startsWith("unavailable-") ? undefined : selected.id}
+              title={`Episode ${selected.number}${selected.title && selected.title !== `Episode ${selected.number}` ? `: ${selected.title}` : ""}`}
+            />
           </div>
         )}
 

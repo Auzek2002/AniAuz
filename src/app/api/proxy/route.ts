@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 // If PROXY_WORKER_URL is set (Cloudflare Worker), segments are sent there instead
 // of being proxied through Vercel. Only m3u8 manifests go through Vercel.
