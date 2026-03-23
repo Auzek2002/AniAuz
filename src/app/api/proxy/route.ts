@@ -67,9 +67,16 @@ export async function GET(request: Request) {
   if (!url) return NextResponse.json({ error: "URL required" }, { status: 400 });
 
   try {
-    const res = await fetch(url, {
-      headers: { ...FETCH_HEADERS, "Referer": referer, "Origin": origin },
-    });
+    // When a Cloudflare Worker is configured, route ALL CDN fetches through it
+    // so the CDN never sees Vercel's datacenter IPs (which it 403-blocks).
+    const cdnFetchUrl = WORKER_URL
+      ? `${WORKER_URL}?url=${encodeURIComponent(url)}&referer=${encodeURIComponent(referer)}`
+      : url;
+    const cdnFetchHeaders = WORKER_URL
+      ? {}  // Worker adds its own headers
+      : { ...FETCH_HEADERS, "Referer": referer, "Origin": origin };
+
+    const res = await fetch(cdnFetchUrl, { headers: cdnFetchHeaders });
 
     if (!res.ok) return new NextResponse(null, { status: res.status });
 
