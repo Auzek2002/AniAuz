@@ -5,9 +5,8 @@ import { useParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { Play, Star, Calendar, Clock, Tv, Users, ChevronLeft, Loader2, BookOpen, AlertCircle } from "lucide-react";
-import { AniListAnime, StreamData } from "@/types";
+import { AniListAnime } from "@/types";
 import EpisodeList from "@/components/EpisodeList";
-import VideoPlayer from "@/components/VideoPlayer";
 
 interface Episode { id: string; number: number; title?: string; }
 
@@ -32,8 +31,8 @@ export default function AnimePage() {
   const [loadingEpisodes, setLoadingEpisodes] = useState(false);
   const [episodeError, setEpisodeError]       = useState<string | null>(null);
 
-  const [selected, setSelected]   = useState<Episode | null>(null);
-  const [streamData, setStreamData] = useState<StreamData | null>(null);
+  const [selected, setSelected]       = useState<Episode | null>(null);
+  const [embedUrl, setEmbedUrl]       = useState<string | null>(null);
   const [streamLoading, setStreamLoading] = useState(false);
   const [streamError, setStreamError]     = useState<string | null>(null);
 
@@ -120,7 +119,7 @@ export default function AnimePage() {
   // ── Fetch stream when episode selected ────────────────────────────────────
   const selectEpisode = useCallback((ep: Episode) => {
     setSelected(ep);
-    setStreamData(null);
+    setEmbedUrl(null);
     setStreamError(null);
 
     if (ep.id.startsWith("unavailable-")) {
@@ -132,14 +131,14 @@ export default function AnimePage() {
     pendingEpRef.current = ep.id;
     setStreamLoading(true);
 
-    fetch(`/api/stream?ep=${encodeURIComponent(ep.id)}&category=sub`)
+    fetch(`/api/embedlink?ep=${encodeURIComponent(ep.id)}`)
       .then(r => r.json())
-      .then((data: StreamData & { error?: string }) => {
-        if (pendingEpRef.current !== ep.id) return; // discard stale response
-        if (data.error || !data.sources?.length) {
+      .then((data: { link?: string; error?: string }) => {
+        if (pendingEpRef.current !== ep.id) return;
+        if (data.error || !data.link) {
           setStreamError("Stream unavailable — try another episode.");
         } else {
-          setStreamData(data);
+          setEmbedUrl(data.link);
         }
       })
       .catch(() => {
@@ -296,13 +295,27 @@ export default function AnimePage() {
                 <AlertCircle className="w-10 h-10 text-red-400" />
                 <p className="text-sm text-gray-400">{streamError}</p>
               </div>
+            ) : streamLoading ? (
+              <div className="relative w-full rounded-xl overflow-hidden bg-black flex flex-col items-center justify-center gap-3 py-16" style={{ aspectRatio: "16/9" }}>
+                <Loader2 className="w-10 h-10 text-purple-400 animate-spin" />
+                <p className="text-sm text-gray-300">Loading stream...</p>
+              </div>
+            ) : embedUrl ? (
+              <div className="relative w-full rounded-xl overflow-hidden bg-black" style={{ aspectRatio: "16/9" }}>
+                <iframe
+                  key={embedUrl}
+                  src={embedUrl}
+                  className="w-full h-full"
+                  allowFullScreen
+                  allow="autoplay; fullscreen; picture-in-picture"
+                  style={{ border: "none" }}
+                />
+              </div>
             ) : (
-              <VideoPlayer
-                streamData={streamData}
-                loading={streamLoading}
-                onEnded={nextEpisode}
-                title={`${animeTitle} — Episode ${selected.number}`}
-              />
+              <div className="relative w-full rounded-xl overflow-hidden bg-[#0a0a14] flex flex-col items-center justify-center gap-3 py-16" style={{ aspectRatio: "16/9" }}>
+                <Play className="w-16 h-16 text-gray-600" />
+                <p className="text-gray-400 text-sm">Select an episode to start watching</p>
+              </div>
             )}
           </div>
         )}

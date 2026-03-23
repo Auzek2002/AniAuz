@@ -29,7 +29,9 @@
       "Bash(node -e \"const { HiAnime } = require\\(''''aniwatch''''\\); const h = new HiAnime.Scraper\\(\\); console.log\\(''''ok''''\\)\")",
       "Bash(grep -r \"tracks\\\\|subtitles\\\\|ScrapedAnime\" c:/Users/User/Desktop/AniAuz/aniauz/node_modules/aniwatch/dist --include=*.d.ts -l)",
       "Bash(grep -r \"fetchEpisodeServers\\\\|IEpisodeServer\\\\|fetchAnimeInfo\" c:/Users/User/Desktop/AniAuz/aniauz/node_modules/@consumet/extensions/dist --include=*.d.ts -l)",
-      "Bash(find c:/Users/User/Desktop/AniAuz/aniauz/src/app/api -type f -name *.ts)"
+      "Bash(find c:/Users/User/Desktop/AniAuz/aniauz/src/app/api -type f -name *.ts)",
+      "Bash(sed -n '350,370p' node_modules/aniwatch/dist/index.js)",
+      "Bash(sed -n '2140,2190p' node_modules/aniwatch/dist/index.js)"
     ]
   }
 }
