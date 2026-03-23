@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx create-next-app@latest . --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --yes)",
+      "Bash(npx create-next-app@latest aniauz --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --yes)",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(node -e \"const {ANIME} = require\\(''@consumet/extensions''\\); console.log\\(Object.keys\\(ANIME\\)\\)\")",
+      "Bash(node -e \"const {ANIME} = require\\(''@consumet/extensions''\\); const h = new ANIME.Hianime\\(\\); console.log\\(Object.getOwnPropertyNames\\(Object.getPrototypeOf\\(h\\)\\).filter\\(n => n !== ''constructor''\\)\\)\")",
+      "Bash(curl -s http://localhost:3000/api/trending?perPage=3)",
+      "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); [print\\(a[''''title''''][''''english''''] or a[''''title''''][''''romaji'''']\\) for a in data[:3]]\")",
+      "Bash(node -e \"const d=require\\(''''fs''''\\).readFileSync\\(''''/dev/stdin'''',''''utf8''''\\); const j=JSON.parse\\(d\\); j.slice\\(0,3\\).forEach\\(a=>console.log\\(a.title.english || a.title.romaji\\)\\)\")",
+      "Bash(curl -s http://localhost:3000/api/gogosearch?q=one+piece)",
+      "Bash(curl -s http://localhost:3000/api/stream?ep=attack-on-titan-112%3Fep%3D3303)",
+      "Bash(start \"\" \"http://localhost:3000\")",
+      "Bash(curl -s \"http://localhost:3000/api/proxy?url=https%3A%2F%2Fhaildrop77.pro%2F_v7%2F65d9dcb997c114d05dae98ec9f55af368f1675ddb076e1c9dec97ed25d8a54cd3a4efc95d7634a74a463421fe00af3c33dc0a897a1ba2c023c9de2008b32b34b3c454c6acdf8d27302de132b9057fe67925becafa991e32ea1fa8348d71f8c45a63e8837677563219667697bf1f2e5f250b86c98809e219999ce8bc20dc3a33c%2Fmaster.m3u8&referer=https%3A%2F%2Fmegacloud.blog%2F\")",
+      "Bash(curl -s \"http://localhost:3000/api/proxy?url=https%3A%2F%2Fhaildrop77.pro%2F_v7%2F65d9dcb997c114d05dae98ec9f55af368f1675ddb076e1c9dec97ed25d8a54cd3a4efc95d7634a74a463421fe00af3c33dc0a897a1ba2c023c9de2008b32b34b3c454c6acdf8d27302de132b9057fe67925becafa991e32ea1fa8348d71f8c45a63e8837677563219667697bf1f2e5f250b86c98809e219999ce8bc20dc3a33c%2Findex-f1-v1-a1.m3u8&referer=https%3A%2F%2Fmegacloud.blog%2F&origin=https%3A%2F%2Fmegacloud.blog\")",
+      "Bash(node -e \"const p=require\\(''./node_modules/aniwatch/package.json''\\); console.log\\(p.version\\)\")",
+      "Bash(curl -s https://api.anify.tv/info/21)",
+      "Bash(curl -s --max-time 8 https://consumet-api.vercel.app/anime/gogoanime/one-piece)",
+      "Bash(xargs grep:*)",
+      "Bash(curl -s https://raw.githubusercontent.com/itzzzme/megacloud-keys/refs/heads/main/key.txt)",
+      "Bash(curl -s --max-time 8 https://player.smashy.stream/anime/21?ep=1)",
+      "Bash(curl -sI --max-time 8 https://player.smashy.stream/anime/21?ep=1)",
+      "Bash(grep -i \"x-frame\\\\|content-security\\\\|access-control\" echo --- curl -sI --max-time 8 https://www.2embed.skin/embed/anime/21/1)",
+      "Bash(curl -s --max-time 6 https://player.smashy.stream/anime/99999999?ep=1)",
+      "Bash(npx tsc:*)",
+      "Bash(grep -r \"hianime\\\\|aniwatchtv\\\\|domain\\\\|SRC_BASE_URL\\\\|BASE_URL\" c:/Users/User/Desktop/AniAuz/aniauz/node_modules/aniwatch/dist --include=*.js -l)",
+      "Bash(node -e \"const { HiAnime } = require\\(''''aniwatch''''\\); const h = new HiAnime.Scraper\\(\\); console.log\\(''''ok''''\\)\")",
+      "Bash(grep -r \"tracks\\\\|subtitles\\\\|ScrapedAnime\" c:/Users/User/Desktop/AniAuz/aniauz/node_modules/aniwatch/dist --include=*.d.ts -l)",
+      "Bash(grep -r \"fetchEpisodeServers\\\\|IEpisodeServer\\\\|fetchAnimeInfo\" c:/Users/User/Desktop/AniAuz/aniauz/node_modules/@consumet/extensions/dist --include=*.d.ts -l)",
+      "Bash(find c:/Users/User/Desktop/AniAuz/aniauz/src/app/api -type f -name *.ts)"
+    ]
+  }
+}
