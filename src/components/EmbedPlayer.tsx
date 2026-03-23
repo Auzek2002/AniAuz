@@ -10,32 +10,48 @@ interface EmbedPlayerProps {
   title?: string;
 }
 
-// AniList-ID-based fallbacks — work on any domain without restriction
+// AniList-ID-based fallbacks
 const FALLBACK_SERVERS = [
   { name: "Server 2", url: (id: number, ep: number) => `https://player.smashy.stream/anime/${id}?ep=${ep}` },
   { name: "Server 3", url: (id: number, ep: number) => `https://www.2embed.skin/embed/anime/${id}/${ep}` },
 ];
 
-// Megacloud (Server 1) whitelists localhost and aniwatchtv.to as embedding origins.
-// On any other domain (Vercel, custom domains) it blocks the embed.
-function isHiAnimeEmbedAllowed(): boolean {
-  if (typeof window === "undefined") return false;
-  const h = window.location.hostname;
-  return h === "localhost" || h === "127.0.0.1";
+// On localhost, Megacloud whitelists the origin so the direct embed works.
+// On any other host (Vercel, etc.) route through /mc/[path] which:
+//   - Preserves the original URL path so window.location.pathname/search work correctly
+//   - Fetches the embed server-side with the correct Referer (aniwatchtv.to)
+//   - Injects a script that spoofs document.referrer + intercepts API calls
+function buildProxiedSrc(embedLink: string, hianimeEpisodeId: string): string {
+  const ref = `https://aniwatchtv.to/watch/${hianimeEpisodeId}`;
+
+  // Use direct embed on localhost — Megacloud whitelists localhost natively
+  if (typeof window !== "undefined") {
+    const h = window.location.hostname;
+    if (h === "localhost" || h === "127.0.0.1") {
+      return embedLink;
+    }
+  }
+
+  try {
+    const mcUrl = new URL(embedLink);
+    // Mirror: /mc/embed-2/v3/e-1/VIDEO_ID?k=1&__ref=https://aniwatchtv.to/watch/...
+    const params = new URLSearchParams(mcUrl.search);
+    params.set("__ref", ref);
+    return `/mc${mcUrl.pathname}?${params.toString()}`;
+  } catch {
+    return `/api/mc-proxy?url=${encodeURIComponent(embedLink)}&ref=${encodeURIComponent(ref)}`;
+  }
 }
 
 export default function EmbedPlayer({ anilistId, episodeNumber, hianimeEpisodeId, title }: EmbedPlayerProps) {
   const [embedLink, setEmbedLink] = useState<string | null>(null);
   const [embedLoading, setEmbedLoading] = useState(false);
-  // On non-localhost, start at fallback server 0 (index into FALLBACK_SERVERS)
   const [serverIdx, setServerIdx] = useState(0);
   const [key, setKey] = useState(0);
 
-  const hiAnimeAllowed = isHiAnimeEmbedAllowed();
-
-  // Fetch HiAnime megacloud embed link only when it can actually be displayed
+  // Fetch HiAnime megacloud embed link whenever the episode changes
   useEffect(() => {
-    if (!hianimeEpisodeId || !hiAnimeAllowed) return;
+    if (!hianimeEpisodeId) return;
     setEmbedLink(null);
     setEmbedLoading(true);
     setServerIdx(0);
@@ -46,20 +62,24 @@ export default function EmbedPlayer({ anilistId, episodeNumber, hianimeEpisodeId
       .then(data => { if (data.link) setEmbedLink(data.link); })
       .catch(() => {})
       .finally(() => setEmbedLoading(false));
-  }, [hianimeEpisodeId, hiAnimeAllowed]);
+  }, [hianimeEpisodeId]);
 
-  // Reset when episode/anime changes
+  // Reset when episode/anime changes (no HiAnime id case)
   useEffect(() => {
+    if (hianimeEpisodeId) return;
     setServerIdx(0);
     setKey(k => k + 1);
-    if (!hiAnimeAllowed) setEmbedLink(null);
-  }, [anilistId, episodeNumber, hiAnimeAllowed]);
+  }, [anilistId, episodeNumber, hianimeEpisodeId]);
 
-  // Build server list: HiAnime embed first (only on localhost), then AniList-based fallbacks
+  // Build server list: proxied HiAnime embed first, then AniList-based fallbacks
+  const proxiedSrc = embedLink && hianimeEpisodeId
+    ? buildProxiedSrc(embedLink, hianimeEpisodeId)
+    : null;
+
   const servers = [
-    ...(hiAnimeAllowed && embedLink ? [{ name: "Server 1 (HiAnime)", src: embedLink }] : []),
+    ...(proxiedSrc ? [{ name: "Server 1 (HiAnime)", src: proxiedSrc }] : []),
     ...FALLBACK_SERVERS.map((s, i) => ({
-      name: hiAnimeAllowed && embedLink ? s.name : `Server ${i + 1}`,
+      name: proxiedSrc ? s.name : `Server ${i + 1}`,
       src: s.url(anilistId, episodeNumber),
     })),
   ];
