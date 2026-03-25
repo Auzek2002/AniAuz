@@ -273,44 +273,43 @@ export async function OPTIONS() {
   });
 }
 
-/*
- * ── CLOUDFLARE WORKER SCRIPT ──────────────────────────────────────────────
- * Deploy this at https://workers.cloudflare.com (free, takes 2 minutes).
- * Then set PROXY_WORKER_URL=https://your-worker.workers.dev in Vercel env vars.
- *
- * =========================================================================
- *
- * export default {
- *   async fetch(request) {
- *     const url = new URL(request.url);
- *     if (request.method === "OPTIONS") {
- *       return new Response(null, { status: 204, headers: {
- *         "Access-Control-Allow-Origin": "*",
- *         "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
- *         "Access-Control-Allow-Headers": "Content-Type",
- *       }});
- *     }
- *     const target = url.searchParams.get("url");
- *     const ref    = url.searchParams.get("ref") || url.searchParams.get("referer") || "";
- *     if (!target) return new Response("URL required", { status: 400 });
- *     let refOrigin = "";
- *     try { refOrigin = new URL(ref).origin; } catch {}
- *     const headers = {
- *       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
- *       "Accept": "*/*",
- *       "Accept-Language": "en-US,en;q=0.9",
- *     };
- *     if (ref)       headers["Referer"] = ref;
- *     if (refOrigin) headers["Origin"]  = refOrigin;
- *     const body = request.method === "POST" ? request.body : undefined;
- *     const resp = await fetch(target, { method: request.method, headers, body });
- *     const response = new Response(resp.body, { status: resp.status, headers: resp.headers });
- *     response.headers.set("Access-Control-Allow-Origin", "*");
- *     response.headers.delete("Content-Security-Policy");
- *     response.headers.delete("X-Frame-Options");
- *     return response;
- *   }
- * };
- *
- * =========================================================================
- */
+// ── CLOUDFLARE WORKER SCRIPT ──────────────────────────────────────────────
+// Deploy this at https://workers.cloudflare.com (free, takes 2 minutes).
+// Then set PROXY_WORKER_URL=https://your-worker.workers.dev in Vercel env vars.
+//  *
+//  * =========================================================================
+//  *
+//  * export default {
+//  *   async fetch(request) {
+//  *     const url = new URL(request.url);
+//  *     if (request.method === "OPTIONS") {
+//  *       return new Response(null, { status: 204, headers: {
+//  *         "Access-Control-Allow-Origin": "*",
+//  *         "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+//  *         "Access-Control-Allow-Headers": "Content-Type",
+//  *       }});
+//  *     }
+//  *     const target = url.searchParams.get("url");
+//  *     const ref    = url.searchParams.get("ref") || url.searchParams.get("referer") || "";
+//  *     if (!target) return new Response("URL required", { status: 400 });
+//  *     let refOrigin = "";
+//  *     try { refOrigin = new URL(ref).origin; } catch {}
+//  *     const headers = {
+//  *       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+//  *       "Accept": "*/*",
+//  *       "Accept-Language": "en-US,en;q=0.9",
+//  *     };
+//  *     if (ref)       headers["Referer"] = ref;
+//  *     if (refOrigin) headers["Origin"]  = refOrigin;
+//  *     const body = request.method === "POST" ? request.body : undefined;
+//  *     const resp = await fetch(target, { method: request.method, headers, body });
+//  *     const response = new Response(resp.body, { status: resp.status, headers: resp.headers });
+//  *     response.headers.set("Access-Control-Allow-Origin", "*");
+//  *     response.headers.delete("Content-Security-Policy");
+//  *     response.headers.delete("X-Frame-Options");
+//  *     return response;
+//  *   }
+//  * };
+//  *
+//  * =========================================================================
+//  */
