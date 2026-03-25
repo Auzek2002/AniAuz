@@ -1,15 +1,11 @@
 /**
  * Megacloud resource proxy.
  *
- * Handles GET and POST requests from the fetch/XHR interceptor injected into
- * the Megacloud embed page. Adds the correct Referer header before forwarding
- * to megacloud's servers.
+ * Set PROXY_WORKER_URL in your environment to route all CDN fetches through a
+ * Cloudflare Worker. This is REQUIRED on Vercel because MegaCloud's CDN blocks
+ * Vercel/AWS datacenter IPs. Cloudflare edge IPs are NOT on those blocklists.
  *
- * M3U8 manifests are rewritten so:
- *   - All segment/sub-manifest URLs go through this proxy (CORS-safe, any CDN).
- *   - AES-128 encryption keys are pre-fetched server-side and served inline via
- *     ?key=<base64> — this prevents failures when megacloud's key server blocks
- *     datacenter IPs (Vercel/AWS).
+ * See the Cloudflare Worker script at the bottom of this file (as a comment).
  */
 
 import { NextResponse } from "next/server";
@@ -19,8 +15,11 @@ export const maxDuration = 30;
 
 const WATCH_DOMAIN = process.env.ANIWATCH_DOMAIN || "aniwatchtv.to";
 
-// Block local/private addresses to prevent SSRF; allow any external CDN host
-// since megacloud may serve M3U8 segments from arbitrary CDN domains.
+// When set, ALL external fetches are routed through this Cloudflare Worker URL.
+// The Worker adds the correct Referer/Origin and uses Cloudflare edge IPs.
+const WORKER_URL = process.env.PROXY_WORKER_URL || "";
+
+// Block local/private addresses to prevent SSRF
 function isAllowed(hostname: string): boolean {
   if (
     hostname === "localhost" ||
@@ -34,7 +33,33 @@ function isAllowed(hostname: string): boolean {
   return true;
 }
 
-// ── M3U8 rewriting ────────────────────────────────────────────────────────────
+const BASE_HEADERS = {
+  "User-Agent":      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  "Accept":          "*/*",
+  "Accept-Language": "en-US,en;q=0.9",
+};
+
+// Build the URL and headers to use when fetching an external resource.
+// If WORKER_URL is set, route through the CF Worker (non-blocked edge IPs).
+// Otherwise fetch directly from Vercel (may be blocked by CDN).
+function buildFetch(targetUrl: string, referer: string, refOrigin: string): { url: string; headers: Record<string, string> } {
+  if (WORKER_URL) {
+    return {
+      url: `${WORKER_URL}?url=${encodeURIComponent(targetUrl)}&ref=${encodeURIComponent(referer)}`,
+      headers: {}, // Worker adds its own headers
+    };
+  }
+  return {
+    url: targetUrl,
+    headers: {
+      ...BASE_HEADERS,
+      "Referer": referer,
+      "Origin":  refOrigin,
+    },
+  };
+}
+
+// ── M3U8 rewriting ──────────────────────────────────────────────────────────
 function resolveUrl(url: string, base: URL): string {
   if (url.startsWith("http://") || url.startsWith("https://")) return url;
   if (url.startsWith("//"))  return base.protocol + url;
@@ -43,9 +68,6 @@ function resolveUrl(url: string, base: URL): string {
   return dir + url;
 }
 
-// Pre-fetch all AES-128 keys referenced in an M3U8.
-// Returns a map of absolute key URI → raw key bytes.
-// Fetching server-side with the correct Referer/cookies avoids key-server IP blocks.
 async function prefetchKeys(
   text: string,
   baseUrl: string,
@@ -64,25 +86,17 @@ async function prefetchKeys(
     if (keyMap.has(absUri)) continue;
 
     try {
-      const keyRes = await fetch(absUri, {
-        headers: {
-          ...BASE_HEADERS,
-          "Referer": referer,
-          "Origin":  refOrigin,
-        },
-      });
+      const { url: fetchUrl, headers: fetchHeaders } = buildFetch(absUri, referer, refOrigin);
+      const keyRes = await fetch(fetchUrl, { headers: fetchHeaders });
       if (keyRes.ok) {
         keyMap.set(absUri, Buffer.from(await keyRes.arrayBuffer()));
       }
-    } catch { /* key will fall back to normal proxy if fetch fails */ }
+    } catch { /* key will fall back to proxy if fetch fails */ }
   }
 
   return keyMap;
 }
 
-// Rewrite a raw M3U8 manifest:
-//   - Segment/sub-manifest lines → proxy URL
-//   - URI="..." in tags → proxy URL (or inline key if available in keyMap)
 function rewriteM3u8(
   text: string,
   baseUrl: string,
@@ -101,8 +115,6 @@ function rewriteM3u8(
     const abs      = resolveUrl(uri, base);
     const keyBytes = keyMap.get(abs);
     if (keyBytes) {
-      // Serve the pre-fetched key from our own endpoint — browser never contacts
-      // megacloud's key server, so datacenter IP blocking doesn't apply.
       return `${proxyBase}?key=${encodeURIComponent(keyBytes.toString("base64"))}`;
     }
     return toProxy(uri);
@@ -114,19 +126,19 @@ function rewriteM3u8(
 
     if (trimmed.startsWith("#")) {
       if (trimmed.startsWith("#EXT-X-KEY")) {
-        // Use pre-fetched key (or fall back to proxy) for encryption key URIs
         return line.replace(/URI="([^"]+)"/g, (_, uri) => `URI="${toKeyOrProxy(uri)}"`);
       }
-      // Other tags: rewrite any URI="..." through proxy
       return line.replace(/URI="([^"]+)"/g, (_, uri) => `URI="${toProxy(uri)}"`);
     }
 
-    // Segment / sub-manifest line
+    // Sub-manifests must go through proxy so their segment URLs get rewritten too
     const abs = resolveUrl(trimmed, base);
-    // Sub-manifests (.m3u8) must go through proxy so their segment URLs get rewritten
     if (abs.includes(".m3u8")) return toProxy(abs);
-    // Media segments: return direct CDN URL so the browser fetches them directly.
-    // CDN providers block Vercel/datacenter IPs but allow regular browser requests.
+
+    // Media segments: if WORKER_URL is set, route through CF Worker;
+    // otherwise return the direct CDN URL (browser fetches with no Referer,
+    // which CDNs typically allow as direct access).
+    if (WORKER_URL) return toProxy(abs);
     return abs;
   }).join("\n");
 }
@@ -140,18 +152,11 @@ function looksLikeM3u8(url: string, contentType: string): boolean {
   );
 }
 
-// ── Main handler ──────────────────────────────────────────────────────────────
-const BASE_HEADERS = {
-  "User-Agent":
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-  "Accept":          "*/*",
-  "Accept-Language": "en-US,en;q=0.9",
-};
-
+// ── Main handler ────────────────────────────────────────────────────────────
 async function handleRequest(request: Request): Promise<NextResponse> {
   const reqUrl = new URL(request.url);
 
-  // ── Serve a pre-fetched AES-128 key embedded in a rewritten M3U8 ─────────
+  // Serve a pre-fetched AES-128 key embedded as base64 in a rewritten M3U8
   const keyParam = reqUrl.searchParams.get("key");
   if (keyParam) {
     try {
@@ -169,7 +174,6 @@ async function handleRequest(request: Request): Promise<NextResponse> {
     }
   }
 
-  // ── Normal proxy request ──────────────────────────────────────────────────
   const url = reqUrl.searchParams.get("url");
   const ref = reqUrl.searchParams.get("ref") || `https://${WATCH_DOMAIN}/`;
 
@@ -191,26 +195,28 @@ async function handleRequest(request: Request): Promise<NextResponse> {
   const cookieHdr = request.headers.get("cookie");
 
   try {
-    const res = await fetch(url, {
+    const { url: fetchUrl, headers: fetchHeaders } = buildFetch(url, ref, refOrigin);
+    const res = await fetch(fetchUrl, {
       method:  request.method,
       headers: {
-        ...BASE_HEADERS,
-        "Referer": ref,
-        "Origin":  refOrigin,
-        ...(reqCT     ? { "Content-Type": reqCT }  : {}),
-        ...(cookieHdr ? { "Cookie": cookieHdr }    : {}),
+        ...fetchHeaders,
+        ...(reqCT     ? { "Content-Type": reqCT } : {}),
+        ...(cookieHdr ? { "Cookie": cookieHdr }   : {}),
       },
       body,
     });
 
     if (!res.ok) {
-      // For non-manifest content (segments, keys), if the CDN blocks our datacenter IP,
-      // redirect the browser to fetch it directly — browser IPs are not blocked.
-      if (res.status === 403 && !looksLikeM3u8(url, "")) {
+      // If the CDN blocked our request (403), redirect the browser to fetch
+      // the resource directly. The /mc page has Referrer-Policy: no-referrer
+      // so the browser sends no Referer — CDNs treat no-Referer as direct
+      // navigation and typically allow it. This is the fallback when no
+      // PROXY_WORKER_URL is configured.
+      if (res.status === 403) {
         return new NextResponse(null, {
           status: 302,
           headers: {
-            "Location": url,
+            "Location":                  url,
             "Access-Control-Allow-Origin": "*",
           },
         });
@@ -223,8 +229,6 @@ async function handleRequest(request: Request): Promise<NextResponse> {
     if (looksLikeM3u8(url, contentType)) {
       const text      = await res.text();
       const proxyBase = `${reqUrl.origin}/api/mc-proxy`;
-      // Pre-fetch AES-128 keys server-side so the browser never has to contact
-      // megacloud's key server (which often blocks datacenter/Vercel IPs).
       const keyMap    = await prefetchKeys(text, url, ref, refOrigin);
       const rewritten = rewriteM3u8(text, url, proxyBase, ref, keyMap);
       return new NextResponse(rewritten, {
@@ -241,11 +245,11 @@ async function handleRequest(request: Request): Promise<NextResponse> {
     return new NextResponse(resBody, {
       status: 200,
       headers: {
-        "Content-Type":              contentType,
+        "Content-Type":               contentType,
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Headers": "Content-Type, Range",
         "Access-Control-Expose-Headers": "Content-Length, Content-Range",
-        "Cache-Control":             contentType.includes("json") ? "no-cache" : "public, max-age=3600",
+        "Cache-Control":              contentType.includes("json") ? "no-cache" : "public, max-age=3600",
       },
     });
 
@@ -268,3 +272,45 @@ export async function OPTIONS() {
     },
   });
 }
+
+/*
+ * ── CLOUDFLARE WORKER SCRIPT ──────────────────────────────────────────────
+ * Deploy this at https://workers.cloudflare.com (free, takes 2 minutes).
+ * Then set PROXY_WORKER_URL=https://your-worker.workers.dev in Vercel env vars.
+ *
+ * =========================================================================
+ *
+ * export default {
+ *   async fetch(request) {
+ *     const url = new URL(request.url);
+ *     if (request.method === "OPTIONS") {
+ *       return new Response(null, { status: 204, headers: {
+ *         "Access-Control-Allow-Origin": "*",
+ *         "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+ *         "Access-Control-Allow-Headers": "Content-Type",
+ *       }});
+ *     }
+ *     const target = url.searchParams.get("url");
+ *     const ref    = url.searchParams.get("ref") || url.searchParams.get("referer") || "";
+ *     if (!target) return new Response("URL required", { status: 400 });
+ *     let refOrigin = "";
+ *     try { refOrigin = new URL(ref).origin; } catch {}
+ *     const headers = {
+ *       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+ *       "Accept": "*/*",
+ *       "Accept-Language": "en-US,en;q=0.9",
+ *     };
+ *     if (ref)       headers["Referer"] = ref;
+ *     if (refOrigin) headers["Origin"]  = refOrigin;
+ *     const body = request.method === "POST" ? request.body : undefined;
+ *     const resp = await fetch(target, { method: request.method, headers, body });
+ *     const response = new Response(resp.body, { status: resp.status, headers: resp.headers });
+ *     response.headers.set("Access-Control-Allow-Origin", "*");
+ *     response.headers.delete("Content-Security-Policy");
+ *     response.headers.delete("X-Frame-Options");
+ *     return response;
+ *   }
+ * };
+ *
+ * =========================================================================
+ */
