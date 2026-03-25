@@ -67,25 +67,44 @@ function buildInjector(apiProxyBase: string, ref: string, mcUrl: string): string
   /* Our own proxy host — never re-proxy requests already going to our server */
   var ownHost=new URL(P).hostname;
 
+  /* Media segments (.ts, .m4s, etc.) should be fetched directly by the browser.
+     CDN providers block Vercel/AWS datacenter IPs but allow regular browser IPs.
+     API calls (getSources JSON, etc.) must still go through our server proxy
+     so the correct Referer header is sent. */
+  function isMediaSegment(u){
+    try{
+      var p=u.split('?')[0].toLowerCase();
+      return p.endsWith('.ts')||p.endsWith('.m4s')||p.endsWith('.aac')||
+             p.endsWith('.m4a')||p.endsWith('.mp4')||p.endsWith('.webm')||
+             p.endsWith('.vtt')||p.endsWith('.ass')||p.endsWith('.srt');
+    }catch(e){return false;}
+  }
+
   function px(u){
+    /* Handle URL and Request objects passed to fetch() */
+    if(u instanceof URL) u=u.href;
+    if(u instanceof Request) u=u.url;
     if(typeof u!=='string') return u;
     try{
       var parsed=new URL(u);
       var h=parsed.hostname;
       /* Skip requests already destined for our proxy (avoid double-proxying) */
       if(h===ownHost) return u;
+      /* Let browser fetch media segments directly — CDN blocks datacenter IPs
+         (Vercel) but allows regular browser requests. */
+      if(isMediaSegment(u)) return u;
       /* Same-origin requests that are actually megacloud embed API calls */
       var path=parsed.pathname;
       if((h===location.hostname||h==='localhost'||h==='127.0.0.1')
           &&(path.startsWith('/embed-2/')||path.startsWith('/embed/'))){
         return P+'?url='+encodeURIComponent(MC+path+parsed.search)+'&ref='+encodeURIComponent(R);
       }
-      /* Proxy ALL other cross-origin requests — megacloud may serve M3U8/segments
-         from any CDN domain; proxying all of them avoids CORS failures. */
+      /* Proxy all other cross-origin requests (API calls, m3u8 manifests, keys) */
       return P+'?url='+encodeURIComponent(u)+'&ref='+encodeURIComponent(R);
     }catch(e){
       /* Relative URL — resolve against megacloud.blog */
       if(typeof u==='string'&&u.startsWith('/')){
+        if(isMediaSegment(u)) return MC+u;
         return P+'?url='+encodeURIComponent(MC+u)+'&ref='+encodeURIComponent(R);
       }
       return u;
@@ -93,7 +112,11 @@ function buildInjector(apiProxyBase: string, ref: string, mcUrl: string): string
   }
 
   var oF=window.fetch;
-  window.fetch=function(u,o){ return oF.call(this,px(u),o); };
+  window.fetch=function(u,o){
+    var proxied=px(u instanceof Request?u.url:u);
+    if(u instanceof Request) return oF.call(this,new Request(proxied,u),o);
+    return oF.call(this,proxied,o);
+  };
 
   var oO=XMLHttpRequest.prototype.open;
   XMLHttpRequest.prototype.open=function(m,u,a,us,pw){

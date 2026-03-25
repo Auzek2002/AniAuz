@@ -122,7 +122,12 @@ function rewriteM3u8(
     }
 
     // Segment / sub-manifest line
-    return toProxy(trimmed);
+    const abs = resolveUrl(trimmed, base);
+    // Sub-manifests (.m3u8) must go through proxy so their segment URLs get rewritten
+    if (abs.includes(".m3u8")) return toProxy(abs);
+    // Media segments: return direct CDN URL so the browser fetches them directly.
+    // CDN providers block Vercel/datacenter IPs but allow regular browser requests.
+    return abs;
   }).join("\n");
 }
 
@@ -198,7 +203,20 @@ async function handleRequest(request: Request): Promise<NextResponse> {
       body,
     });
 
-    if (!res.ok) return new NextResponse(null, { status: res.status });
+    if (!res.ok) {
+      // For non-manifest content (segments, keys), if the CDN blocks our datacenter IP,
+      // redirect the browser to fetch it directly — browser IPs are not blocked.
+      if (res.status === 403 && !looksLikeM3u8(url, "")) {
+        return new NextResponse(null, {
+          status: 302,
+          headers: {
+            "Location": url,
+            "Access-Control-Allow-Origin": "*",
+          },
+        });
+      }
+      return new NextResponse(null, { status: res.status });
+    }
 
     const contentType = res.headers.get("content-type") || "application/octet-stream";
 
