@@ -17,24 +17,23 @@ const FALLBACK_SERVERS = [
 ];
 
 // On localhost, Megacloud whitelists the origin so the direct embed works.
-// On any other host (Vercel, etc.) route through /mc/[path] which:
-//   - Preserves the original URL path so window.location.pathname/search work correctly
-//   - Fetches the embed server-side with the correct Referer (aniwatchtv.to)
-//   - Injects a script that spoofs document.referrer + intercepts API calls
+// On deployed hosts, we serve the embed through /mc/[path] which:
+//   - Fetches the embed HTML server-side with the correct Referer (aniwatchtv.to)
+//   - Injects a script that spoofs document.referrer so Megacloud's JS check passes
+//   - Returns the page with Referrer-Policy: no-referrer so any direct CDN requests
+//     from the browser send no Referer (user's IP + no Referer = allowed by CDN)
 function buildProxiedSrc(embedLink: string, hianimeEpisodeId: string): string {
   const ref = `https://aniwatchtv.to/watch/${hianimeEpisodeId}`;
 
-  // Use direct embed on localhost — Megacloud whitelists localhost natively
   if (typeof window !== "undefined") {
     const h = window.location.hostname;
     if (h === "localhost" || h === "127.0.0.1") {
-      return embedLink;
+      return embedLink; // Megacloud whitelists localhost natively
     }
   }
 
   try {
     const mcUrl = new URL(embedLink);
-    // Mirror: /mc/embed-2/v3/e-1/VIDEO_ID?k=1&__ref=https://aniwatchtv.to/watch/...
     const params = new URLSearchParams(mcUrl.search);
     params.set("__ref", ref);
     return `/mc${mcUrl.pathname}?${params.toString()}`;
@@ -71,7 +70,6 @@ export default function EmbedPlayer({ anilistId, episodeNumber, hianimeEpisodeId
     setKey(k => k + 1);
   }, [anilistId, episodeNumber, hianimeEpisodeId]);
 
-  // Build server list: proxied HiAnime embed first, then AniList-based fallbacks
   const proxiedSrc = embedLink && hianimeEpisodeId
     ? buildProxiedSrc(embedLink, hianimeEpisodeId)
     : null;

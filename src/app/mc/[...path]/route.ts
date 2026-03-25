@@ -177,6 +177,10 @@ export async function GET(request: Request) {
       const responseHeaders = new Headers({
         "Content-Type":              "text/html; charset=utf-8",
         "Access-Control-Allow-Origin": "*",
+        // no-referrer: any CDN requests made directly by the browser (segments, keys)
+        // will carry no Referer header. CDNs treat no-Referer as direct navigation
+        // (allowed), avoiding the ani-auz.vercel.app referrer being rejected.
+        "Referrer-Policy":           "no-referrer",
       });
 
       // Forward Set-Cookie headers (strip domain restriction so browser stores them)
