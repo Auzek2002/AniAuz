@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Play, RefreshCw, Loader2 } from "lucide-react";
+
 
 interface EmbedPlayerProps {
   anilistId: number;
@@ -10,11 +11,17 @@ interface EmbedPlayerProps {
   title?: string;
 }
 
-// AniList-ID-based fallbacks
-const FALLBACK_SERVERS = [
-  { name: "Server 2", url: (id: number, ep: number) => `https://player.smashy.stream/anime/${id}?ep=${ep}` },
-  { name: "Server 3", url: (id: number, ep: number) => `https://www.2embed.skin/embed/anime/${id}/${ep}` },
-];
+// Self-hosted third-party embeds — these providers run their own CDN / proxying
+// infrastructure, so they work from any origin (including Vercel deployments)
+// without our server needing to proxy segment traffic.
+const SMASHY_SERVER = {
+  name: "Smashy Stream",
+  url: (id: number, ep: number) => `https://player.smashy.stream/anime/${id}?ep=${ep}`,
+};
+const TWOEMBED_SERVER = {
+  name: "2Embed",
+  url: (id: number, ep: number) => `https://www.2embed.skin/embed/anime/${id}/${ep}`,
+};
 
 // On localhost, Megacloud whitelists the origin so the direct embed works.
 // On deployed hosts, we serve the embed through /mc/[path] which:
@@ -22,6 +29,8 @@ const FALLBACK_SERVERS = [
 //   - Injects a script that spoofs document.referrer so Megacloud's JS check passes
 //   - Returns the page with Referrer-Policy: no-referrer so any direct CDN requests
 //     from the browser send no Referer (user's IP + no Referer = allowed by CDN)
+// The /mc proxy path only works reliably when PROXY_WORKER_URL is configured
+// (a Cloudflare Worker), because Megacloud's CDN blocks Vercel/AWS datacenter IPs.
 function buildProxiedSrc(embedLink: string, hianimeEpisodeId: string): string {
   const ref = `https://aniwatchtv.to/watch/${hianimeEpisodeId}`;
 
@@ -48,12 +57,16 @@ export default function EmbedPlayer({ anilistId, episodeNumber, hianimeEpisodeId
   const [serverIdx, setServerIdx] = useState(0);
   const [key, setKey] = useState(0);
 
-  // Fetch HiAnime megacloud embed link whenever the episode changes
+  // Fetch HiAnime megacloud embed link whenever the episode changes.
+  // On deployed hosts this relies on PROXY_WORKER_URL being set to a Cloudflare
+  // Worker so the CDN doesn't block Vercel datacenter IPs.
   useEffect(() => {
-    if (!hianimeEpisodeId) return;
+    if (!hianimeEpisodeId) {
+      setEmbedLink(null);
+      return;
+    }
     setEmbedLink(null);
     setEmbedLoading(true);
-    setServerIdx(0);
     setKey(k => k + 1);
 
     fetch(`/api/embedlink?ep=${encodeURIComponent(hianimeEpisodeId)}`)
@@ -63,9 +76,8 @@ export default function EmbedPlayer({ anilistId, episodeNumber, hianimeEpisodeId
       .finally(() => setEmbedLoading(false));
   }, [hianimeEpisodeId]);
 
-  // Reset when episode/anime changes (no HiAnime id case)
+  // Reset server index when episode/anime changes
   useEffect(() => {
-    if (hianimeEpisodeId) return;
     setServerIdx(0);
     setKey(k => k + 1);
   }, [anilistId, episodeNumber, hianimeEpisodeId]);
@@ -74,15 +86,19 @@ export default function EmbedPlayer({ anilistId, episodeNumber, hianimeEpisodeId
     ? buildProxiedSrc(embedLink, hianimeEpisodeId)
     : null;
 
-  const servers = [
-    ...(proxiedSrc ? [{ name: "Server 1 (HiAnime)", src: proxiedSrc }] : []),
-    ...FALLBACK_SERVERS.map((s, i) => ({
-      name: proxiedSrc ? s.name : `Server ${i + 1}`,
-      src: s.url(anilistId, episodeNumber),
-    })),
-  ];
+  // Server ordering — HiAnime first on both localhost and deployed (on deployed
+  // this requires PROXY_WORKER_URL to be set so Megacloud's CDN doesn't block
+  // Vercel IPs). Smashy / 2Embed are self-contained fallbacks.
+  const servers = useMemo(() => {
+    const hianime = proxiedSrc ? [{ name: "HiAnime", src: proxiedSrc }] : [];
+    const thirdParty = [
+      { name: SMASHY_SERVER.name, src: SMASHY_SERVER.url(anilistId, episodeNumber) },
+      { name: TWOEMBED_SERVER.name, src: TWOEMBED_SERVER.url(anilistId, episodeNumber) },
+    ];
+    return [...hianime, ...thirdParty];
+  }, [proxiedSrc, anilistId, episodeNumber]);
 
-  const idx = Math.min(serverIdx, servers.length - 1);
+  const idx = Math.min(serverIdx, Math.max(0, servers.length - 1));
   const src = servers[idx]?.src ?? "";
 
   return (
@@ -102,14 +118,18 @@ export default function EmbedPlayer({ anilistId, episodeNumber, hianimeEpisodeId
             className="absolute inset-0 w-full h-full border-0"
             title={title || `Episode ${episodeNumber}`}
           />
-        ) : null}
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center bg-black">
+            <Loader2 className="w-8 h-8 text-purple-400 animate-spin" />
+          </div>
+        )}
       </div>
 
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 flex-wrap">
           <span className="text-xs text-gray-500">Servers:</span>
           {servers.map((s, i) => (
-            <button key={i}
+            <button key={`${s.name}-${i}`}
               onClick={() => { setServerIdx(i); setKey(k => k + 1); }}
               className={`px-3 py-1 text-xs rounded-lg transition-all ${i === idx ? "bg-purple-600 text-white" : "bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 border border-white/10"}`}>
               {s.name}
