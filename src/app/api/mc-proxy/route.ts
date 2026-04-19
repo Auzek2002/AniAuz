@@ -45,7 +45,7 @@ const BASE_HEADERS = {
 function buildFetch(targetUrl: string, referer: string, refOrigin: string): { url: string; headers: Record<string, string> } {
   if (WORKER_URL) {
     return {
-      url: `${WORKER_URL}?url=${encodeURIComponent(targetUrl)}&ref=${encodeURIComponent(referer)}`,
+      url: `${WORKER_URL}?url=${encodeURIComponent(targetUrl)}&referer=${encodeURIComponent(referer)}`,
       headers: {}, // Worker adds its own headers
     };
   }
@@ -57,6 +57,13 @@ function buildFetch(targetUrl: string, referer: string, refOrigin: string): { ur
       "Origin":  refOrigin,
     },
   };
+}
+
+// Direct-to-Worker URL (skips Vercel entirely). Used for segment URLs written
+// into the rewritten m3u8 so the browser fetches segments from the Worker
+// directly — avoiding Vercel's 10s function timeout on large segment transfers.
+function buildDirectWorkerUrl(targetUrl: string, referer: string): string {
+  return `${WORKER_URL}?url=${encodeURIComponent(targetUrl)}&referer=${encodeURIComponent(referer)}`;
 }
 
 // ── M3U8 rewriting ──────────────────────────────────────────────────────────
@@ -131,14 +138,17 @@ function rewriteM3u8(
       return line.replace(/URI="([^"]+)"/g, (_, uri) => `URI="${toProxy(uri)}"`);
     }
 
-    // Sub-manifests must go through proxy so their segment URLs get rewritten too
+    // Sub-manifests must go through our proxy so their segment URLs get
+    // rewritten too (we need to see the text to rewrite it).
     const abs = resolveUrl(trimmed, base);
     if (abs.includes(".m3u8")) return toProxy(abs);
 
-    // Media segments: if WORKER_URL is set, route through CF Worker;
-    // otherwise return the direct CDN URL (browser fetches with no Referer,
-    // which CDNs typically allow as direct access).
-    if (WORKER_URL) return toProxy(abs);
+    // Media segments: if WORKER_URL is set, send the browser DIRECTLY to the
+    // Worker (skip the Vercel hop). This avoids Vercel's 10s function timeout
+    // on large segment transfers and cuts latency.
+    // Otherwise fall back to the direct CDN URL (browser fetches with no
+    // Referer, which CDNs typically allow as direct access).
+    if (WORKER_URL) return buildDirectWorkerUrl(abs, referer);
     return abs;
   }).join("\n");
 }

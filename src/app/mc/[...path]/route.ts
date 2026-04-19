@@ -22,8 +22,9 @@ export const maxDuration = 30;
 
 const MEGACLOUD_ORIGIN = "https://megacloud.blog";
 const WATCH_DOMAIN = process.env.ANIWATCH_DOMAIN || "aniwatchtv.to";
+const WORKER_URL = process.env.PROXY_WORKER_URL || "";
 
-function buildInjector(apiProxyBase: string, ref: string, mcUrl: string): string {
+function buildInjector(apiProxyBase: string, ref: string, mcUrl: string, workerHost: string): string {
   const parsed = new URL(mcUrl);
   // The player may read these from window.location
   const mcPathname = parsed.pathname;
@@ -66,6 +67,9 @@ function buildInjector(apiProxyBase: string, ref: string, mcUrl: string): string
   var MC=${JSON.stringify(MEGACLOUD_ORIGIN)};
   /* Our own proxy host — never re-proxy requests already going to our server */
   var ownHost=new URL(P).hostname;
+  /* Cloudflare Worker host — rewritten m3u8 manifests point segment URLs here;
+     we must NOT re-proxy those through Vercel (defeats the whole purpose). */
+  var workerHost=${JSON.stringify(workerHost)};
 
   /* Media segments (.ts, .m4s, etc.) should be fetched directly by the browser.
      CDN providers block Vercel/AWS datacenter IPs but allow regular browser IPs.
@@ -90,6 +94,11 @@ function buildInjector(apiProxyBase: string, ref: string, mcUrl: string): string
       var h=parsed.hostname;
       /* Skip requests already destined for our proxy (avoid double-proxying) */
       if(h===ownHost) return u;
+      /* Skip requests destined for the Cloudflare Worker — these come from
+         rewritten m3u8 manifests where segment URLs point directly at the
+         Worker. Re-proxying them through Vercel would defeat the worker's
+         purpose and hit Vercel function timeouts. */
+      if(workerHost && h===workerHost) return u;
       /* Let browser fetch media segments directly — CDN blocks datacenter IPs
          (Vercel) but allows regular browser requests. */
       if(isMediaSegment(u)) return u;
@@ -167,7 +176,11 @@ export async function GET(request: Request) {
       // <base href> makes relative HTML resource URLs (img, link) resolve to megacloud.blog
       const baseTag  = `<base href="${MEGACLOUD_ORIGIN}/">`;
       const apiProxy = `${reqUrl.origin}/api/mc-proxy`;
-      const injector = buildInjector(apiProxy, ref, mcUrl);
+      let workerHost = "";
+      if (WORKER_URL) {
+        try { workerHost = new URL(WORKER_URL).hostname; } catch {}
+      }
+      const injector = buildInjector(apiProxy, ref, mcUrl, workerHost);
 
       html = html.includes("<head>")
         ? html.replace("<head>", `<head>${baseTag}${injector}`)
