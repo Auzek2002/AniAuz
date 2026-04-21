@@ -7,7 +7,7 @@ import Link from "next/link";
 import { Play, Star, Calendar, Clock, Tv, Users, ChevronLeft, Loader2, BookOpen, AlertCircle } from "lucide-react";
 import { AniListAnime } from "@/types";
 import EpisodeList from "@/components/EpisodeList";
-import EmbedPlayer from "@/components/EmbedPlayer";
+import UniversalPlayer from "@/components/UniversalPlayer";
 
 interface Episode { id: string; number: number; title?: string; }
 
@@ -255,11 +255,12 @@ export default function AnimePage() {
               </div>
             </div>
 
-            <EmbedPlayer
+            <UniversalPlayer
               anilistId={anime.id}
               episodeNumber={selected.number}
               hianimeEpisodeId={selected.id.startsWith("unavailable-") ? undefined : selected.id}
               title={`Episode ${selected.number}${selected.title && selected.title !== `Episode ${selected.number}` ? `: ${selected.title}` : ""}`}
+              onEnded={nextEpisode}
             />
           </div>
         )}

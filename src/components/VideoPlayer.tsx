@@ -33,7 +33,7 @@ export default function VideoPlayer({ streamData, loading, onEnded, title }: Vid
   const [selectedSubIdx, setSelectedSubIdx] = useState<number>(0); // 0 = first sub, -1 = off
 
   const subtitles = useMemo(() => {
-    return (streamData?.subtitles || []).filter(s => s.lang.toLowerCase() !== "thumbnails");
+    return (streamData?.subtitles || []).filter(s => s.lang?.toLowerCase() !== "thumbnails");
   }, [streamData]);
 
   const displaySources = useMemo(() => {
@@ -100,8 +100,8 @@ export default function VideoPlayer({ streamData, loading, onEnded, title }: Vid
   useEffect(() => {
     setSelectedSource(0);
     // Default to first English sub, or first available
-    const subs = (streamData?.subtitles || []).filter(s => s.lang.toLowerCase() !== "thumbnails");
-    const engIdx = subs.findIndex(s => s.lang.toLowerCase().includes("english"));
+    const subs = (streamData?.subtitles || []).filter(s => s.lang?.toLowerCase() !== "thumbnails");
+    const engIdx = subs.findIndex(s => s.lang?.toLowerCase().includes("english"));
     setSelectedSubIdx(engIdx >= 0 ? engIdx : subs.length > 0 ? 0 : -1);
   }, [streamData]);
 
@@ -204,9 +204,9 @@ export default function VideoPlayer({ streamData, loading, onEnded, title }: Vid
           <track
             key={`${sub.url}-${i}`}
             kind="subtitles"
-            src={`/api/proxy?url=${encodeURIComponent(sub.url)}`}
+            src={`/api/proxy?url=${encodeURIComponent(sub.url)}${streamData?.headers?.Referer ? `&referer=${encodeURIComponent(streamData.headers.Referer)}` : ""}`}
             label={sub.lang}
-            srcLang={sub.lang.slice(0, 2).toLowerCase()}
+            srcLang={(sub.lang || "").slice(0, 2).toLowerCase()}
             default={i === selectedSubIdx}
           />
         ))}

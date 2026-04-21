@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { Play, RefreshCw, Loader2 } from "lucide-react";
 
-
 interface EmbedPlayerProps {
   anilistId: number;
   episodeNumber: number;
@@ -11,9 +10,9 @@ interface EmbedPlayerProps {
   title?: string;
 }
 
-// Self-hosted third-party embeds — these providers run their own CDN / proxying
-// infrastructure, so they work from any origin (including Vercel deployments)
-// without our server needing to proxy segment traffic.
+// Self-hosted third-party embeds — these providers run their own CDN /
+// proxying infrastructure and accept AniList IDs, so they work from any
+// origin (including Vercel deployments) without any of our proxy code.
 const SMASHY_SERVER = {
   name: "Smashy Stream",
   url: (id: number, ep: number) => `https://player.smashy.stream/anime/${id}?ep=${ep}`,
@@ -22,16 +21,16 @@ const TWOEMBED_SERVER = {
   name: "2Embed",
   url: (id: number, ep: number) => `https://www.2embed.skin/embed/anime/${id}/${ep}`,
 };
+const TWOANIME_SERVER = {
+  name: "2Anime",
+  url: (id: number, ep: number) => `https://2anime.xyz/embed/anilist-${id}-${ep}`,
+};
 
-// On localhost, Megacloud whitelists the origin so the direct embed works.
-// On deployed hosts, we serve the embed through /mc/[path] which:
-//   - Fetches the embed HTML server-side with the correct Referer (aniwatchtv.to)
-//   - Injects a script that spoofs document.referrer so Megacloud's JS check passes
-//   - Returns the page with Referrer-Policy: no-referrer so any direct CDN requests
-//     from the browser send no Referer (user's IP + no Referer = allowed by CDN)
-// The /mc proxy path only works reliably when PROXY_WORKER_URL is configured
-// (a Cloudflare Worker), because Megacloud's CDN blocks Vercel/AWS datacenter IPs.
-function buildProxiedSrc(embedLink: string, hianimeEpisodeId: string): string {
+// HiAnime / Megacloud embed — only works on localhost (origin whitelisted) or
+// on deployments with a working proxy chain (PROXY_WORKER_URL + not blocked by
+// Megacloud's anti-bot). Inherently fragile in production, so we keep it as
+// a last-resort option rather than the default on deployed sites.
+function buildHiAnimeSrc(embedLink: string, hianimeEpisodeId: string): string {
   const ref = `https://aniwatchtv.to/watch/${hianimeEpisodeId}`;
 
   if (typeof window !== "undefined") {
@@ -51,17 +50,30 @@ function buildProxiedSrc(embedLink: string, hianimeEpisodeId: string): string {
   }
 }
 
+function isLocalHost(): boolean {
+  if (typeof window === "undefined") return false;
+  const h = window.location.hostname;
+  return h === "localhost" || h === "127.0.0.1";
+}
+
 export default function EmbedPlayer({ anilistId, episodeNumber, hianimeEpisodeId, title }: EmbedPlayerProps) {
   const [embedLink, setEmbedLink] = useState<string | null>(null);
   const [embedLoading, setEmbedLoading] = useState(false);
   const [serverIdx, setServerIdx] = useState(0);
   const [key, setKey] = useState(0);
+  const [isLocal, setIsLocal] = useState(false);
 
-  // Fetch HiAnime megacloud embed link whenever the episode changes.
-  // On deployed hosts this relies on PROXY_WORKER_URL being set to a Cloudflare
-  // Worker so the CDN doesn't block Vercel datacenter IPs.
+  // Detect environment client-side (window is undefined during SSR)
   useEffect(() => {
-    if (!hianimeEpisodeId) {
+    setIsLocal(isLocalHost());
+  }, []);
+
+  // Fetch HiAnime megacloud embed link when on localhost. On deployed sites
+  // Megacloud's anti-bot protection makes this path unreliable regardless of
+  // which proxy we use, so we skip the fetch and rely on the third-party
+  // embeds below — which handle their own streaming and work everywhere.
+  useEffect(() => {
+    if (!hianimeEpisodeId || !isLocal) {
       setEmbedLink(null);
       return;
     }
@@ -74,7 +86,7 @@ export default function EmbedPlayer({ anilistId, episodeNumber, hianimeEpisodeId
       .then(data => { if (data.link) setEmbedLink(data.link); })
       .catch(() => {})
       .finally(() => setEmbedLoading(false));
-  }, [hianimeEpisodeId]);
+  }, [hianimeEpisodeId, isLocal]);
 
   // Reset server index when episode/anime changes
   useEffect(() => {
@@ -82,21 +94,26 @@ export default function EmbedPlayer({ anilistId, episodeNumber, hianimeEpisodeId
     setKey(k => k + 1);
   }, [anilistId, episodeNumber, hianimeEpisodeId]);
 
-  const proxiedSrc = embedLink && hianimeEpisodeId
-    ? buildProxiedSrc(embedLink, hianimeEpisodeId)
+  const hianimeSrc = embedLink && hianimeEpisodeId
+    ? buildHiAnimeSrc(embedLink, hianimeEpisodeId)
     : null;
 
-  // Server ordering — HiAnime first on both localhost and deployed (on deployed
-  // this requires PROXY_WORKER_URL to be set so Megacloud's CDN doesn't block
-  // Vercel IPs). Smashy / 2Embed are self-contained fallbacks.
+  // Server ordering:
+  //   localhost → HiAnime first (works natively via Megacloud origin whitelist)
+  //   deployed  → Smashy Stream first, then 2Embed, then 2Anime. HiAnime is
+  //               deliberately NOT included on deployed sites because
+  //               Megacloud's CDN blocks every datacenter/proxy we can reach.
   const servers = useMemo(() => {
-    const hianime = proxiedSrc ? [{ name: "HiAnime", src: proxiedSrc }] : [];
     const thirdParty = [
-      { name: SMASHY_SERVER.name, src: SMASHY_SERVER.url(anilistId, episodeNumber) },
+      { name: SMASHY_SERVER.name,   src: SMASHY_SERVER.url(anilistId, episodeNumber) },
       { name: TWOEMBED_SERVER.name, src: TWOEMBED_SERVER.url(anilistId, episodeNumber) },
+      { name: TWOANIME_SERVER.name, src: TWOANIME_SERVER.url(anilistId, episodeNumber) },
     ];
-    return [...hianime, ...thirdParty];
-  }, [proxiedSrc, anilistId, episodeNumber]);
+    if (isLocal && hianimeSrc) {
+      return [{ name: "HiAnime", src: hianimeSrc }, ...thirdParty];
+    }
+    return thirdParty;
+  }, [isLocal, hianimeSrc, anilistId, episodeNumber]);
 
   const idx = Math.min(serverIdx, Math.max(0, servers.length - 1));
   const src = servers[idx]?.src ?? "";
