@@ -23,9 +23,10 @@ export async function GET(request: Request) {
     }
     return NextResponse.json(data);
   } catch (err) {
-    console.error("AnimeKai stream error:", (err as Error).message?.slice(0, 150));
+    const msg = (err as Error).message?.slice(0, 300) || "unknown";
+    console.error("AnimeKai stream error:", msg);
     return NextResponse.json(
-      { error: "Failed to fetch stream" },
+      { error: "Failed to fetch stream", detail: msg },
       { status: 500 },
     );
   }

@@ -54,7 +54,10 @@
       "Bash(curl -s -L \"https://animez.to/search?keyword=naruto\" -H \"User-Agent: Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/120.0.0.0 Safari/537.36\")",
       "Bash(curl -s -L \"https://animez.to/\" -H \"User-Agent: Mozilla/5.0\")",
       "Bash(node -e \"const {ANIME}=require\\('@consumet/extensions'\\); const ak=new ANIME.AnimeKai\\(\\); ak.search\\('attack on titan'\\).then\\(r=>console.log\\(JSON.stringify\\(r.results?.slice\\(0,3\\)\\)\\)\\).catch\\(e=>console.error\\(e.message\\)\\)\")",
-      "Bash(node -e ' *)"
+      "Bash(node -e ' *)",
+      "Bash(xargs cat *)",
+      "Bash(curl -s -w \"\\\\nHTTP %{http_code}\" \"https://enc-dec.app/api/enc-kai?text=test123\" -H \"User-Agent: Mozilla/5.0\")",
+      "Bash(curl -s -w \"\\\\nHTTP %{http_code}\" -X POST \"https://enc-dec.app/api/dec-mega\" -H \"Content-Type: application/json\" -d '{\"text\":\"test\",\"agent\":\"Mozilla/5.0\"}')"
     ]
   }
 }
