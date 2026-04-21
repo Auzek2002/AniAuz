@@ -57,7 +57,8 @@
       "Bash(node -e ' *)",
       "Bash(xargs cat *)",
       "Bash(curl -s -w \"\\\\nHTTP %{http_code}\" \"https://enc-dec.app/api/enc-kai?text=test123\" -H \"User-Agent: Mozilla/5.0\")",
-      "Bash(curl -s -w \"\\\\nHTTP %{http_code}\" -X POST \"https://enc-dec.app/api/dec-mega\" -H \"Content-Type: application/json\" -d '{\"text\":\"test\",\"agent\":\"Mozilla/5.0\"}')"
+      "Bash(curl -s -w \"\\\\nHTTP %{http_code}\" -X POST \"https://enc-dec.app/api/dec-mega\" -H \"Content-Type: application/json\" -d '{\"text\":\"test\",\"agent\":\"Mozilla/5.0\"}')",
+      "Bash(curl -s \"http://localhost:3000/api/stream?ep=shingeki-no-kyojin-nk0p%24ep%3D1%24token%3DLoO49fvlvhWnl2ZNyog\")"
     ]
   }
 }
