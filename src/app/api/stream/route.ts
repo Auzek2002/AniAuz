@@ -12,18 +12,26 @@ const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36";
 
 // Route a GET through the CF Worker when PROXY_WORKER_URL is set.
-// anikai.to blocks Vercel datacenter IPs; Cloudflare Worker IPs bypass this.
-async function proxyGet(url: string, referer: string): Promise<Response> {
+// anikai.to blocks Vercel datacenter IPs. We pass xhr=1 and accept= so the
+// worker forwards the headers anikai.to's origin needs to return a valid response.
+async function proxyGet(
+  url: string,
+  referer: string,
+  opts: { xhr?: boolean; accept?: string } = {},
+): Promise<Response> {
   if (WORKER_URL) {
-    return fetch(`${WORKER_URL}?url=${encodeURIComponent(url)}&ref=${encodeURIComponent(referer)}`);
+    let workerUrl = `${WORKER_URL}?url=${encodeURIComponent(url)}&ref=${encodeURIComponent(referer)}`;
+    if (opts.xhr)    workerUrl += "&xhr=1";
+    if (opts.accept) workerUrl += `&accept=${encodeURIComponent(opts.accept)}`;
+    return fetch(workerUrl);
   }
   return fetch(url, {
     headers: {
       "User-Agent": UA,
-      Accept: "text/html, */*; q=0.01",
+      Accept: opts.accept || "text/html, */*; q=0.01",
       "Accept-Language": "en-US,en;q=0.5",
       Referer: referer,
-      "X-Requested-With": "XMLHttpRequest",
+      ...(opts.xhr ? { "X-Requested-With": "XMLHttpRequest" } : {}),
     },
   });
 }
@@ -86,7 +94,10 @@ export async function GET(request: Request) {
 
     // Step 2: fetch servers list — route through CF Worker to bypass Vercel IP block
     const listUrl = `${ANIKAI}/ajax/links/list?token=${token}&_=${authToken}`;
-    const listRes = await proxyGet(listUrl, `${ANIKAI}/`);
+    const listRes = await proxyGet(listUrl, `${ANIKAI}/`, {
+      xhr: true,
+      accept: "text/html, */*; q=0.01",
+    });
     if (!listRes.ok) throw new Error(`links/list returned ${listRes.status}`);
     const listJson = (await listRes.json()) as { result?: string };
     if (!listJson.result) throw new Error("links/list: empty result");
@@ -101,7 +112,10 @@ export async function GET(request: Request) {
     // Step 3: get embed URL for this server — also via CF Worker
     const viewAuthToken = await generateToken(serverId);
     const viewUrl = `${ANIKAI}/ajax/links/view?id=${serverId}&_=${viewAuthToken}`;
-    const viewRes = await proxyGet(viewUrl, `${ANIKAI}/`);
+    const viewRes = await proxyGet(viewUrl, `${ANIKAI}/`, {
+      xhr: true,
+      accept: "text/html, */*; q=0.01",
+    });
     if (!viewRes.ok) throw new Error(`links/view returned ${viewRes.status}`);
     const viewJson = (await viewRes.json()) as { result?: string };
     if (!viewJson.result) throw new Error("links/view: empty result");

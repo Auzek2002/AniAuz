@@ -71,14 +71,19 @@ export default {
       refOrigin = "https://megacloud.blog";
     }
 
+    // Optional caller-specified headers (passed as query params)
+    const xhrFlag  = url.searchParams.get("xhr");   // xhr=1 → add X-Requested-With
+    const acceptHdr = url.searchParams.get("accept"); // accept=... → override Accept
+
     // Build outbound headers — spoof Referer/Origin, forward Range + Content-Type
     const outHeaders = {
       "User-Agent": UA,
-      "Accept": "*/*",
+      "Accept": acceptHdr || "*/*",
       "Accept-Language": "en-US,en;q=0.9",
       "Referer": referer,
       "Origin": refOrigin,
     };
+    if (xhrFlag === "1") outHeaders["X-Requested-With"] = "XMLHttpRequest";
     const range = request.headers.get("Range");
     if (range) outHeaders["Range"] = range;
     const reqCT = request.headers.get("Content-Type");
