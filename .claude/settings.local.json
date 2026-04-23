@@ -62,7 +62,13 @@
       "Bash(node -e \"const {ANIME}=require\\('@consumet/extensions'\\); console.log\\(Object.keys\\(ANIME\\).filter\\(k=>!k.includes\\('_'\\)\\)\\)\")",
       "Bash(wait)",
       "Bash(curl -s https://anikai.to/watch/shingeki-no-kyojin-nk0p -H 'User-Agent: Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/137.0.0.0 Safari/537.36' -H 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' -H 'Accept-Language: en-US,en;q=0.5')",
-      "Bash(curl -s https://anikai.to/watch/shingeki-no-kyojin-nk0p -H 'User-Agent: Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/137.0.0.0 Safari/537.36')"
+      "Bash(curl -s https://anikai.to/watch/shingeki-no-kyojin-nk0p -H 'User-Agent: Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/137.0.0.0 Safari/537.36')",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"https://anitaku.to/\" -H \"User-Agent: Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36\")",
+      "Bash(curl -s \"https://anitaku.to/search.html?keyword=attack+on+titan\" -H \"User-Agent: Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/120.0.0.0 Safari/537.36\")",
+      "Bash(curl -s \"https://anitaku.to/attack-on-titan-episode-1\" -H \"User-Agent: Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/120.0.0.0 Safari/537.36\")",
+      "Bash(curl -s -I \"https://vibeplayer.site/4aa87451811e8db9\" -H \"User-Agent: Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36\" -H \"Referer: https://anitaku.to/\")",
+      "Bash(curl -s \"https://anitaku.to/category/attack-on-titan\" -H \"User-Agent: Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/120.0.0.0 Safari/537.36\")",
+      "Bash(curl -s \"https://anitaku.to/category/attack-on-titan\" -H \"User-Agent: Mozilla/5.0\")"
     ]
   }
 }
