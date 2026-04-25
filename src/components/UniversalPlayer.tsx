@@ -134,6 +134,7 @@ export default function UniversalPlayer({
             src={currentUrl}
             allowFullScreen
             allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
+            sandbox="allow-scripts allow-same-origin allow-forms allow-pointer-lock allow-presentation"
             className="absolute inset-0 w-full h-full border-0"
             title={title || `Episode ${episodeNumber}`}
           />
