@@ -1,124 +1,134 @@
 "use client";
 
-import { useState } from "react";
-import { Play, ChevronDown, ChevronUp } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Play } from "lucide-react";
 import { ConsumetEpisode } from "@/types";
 import Image from "next/image";
 
 interface EpisodeListProps {
-  episodes: ConsumetEpisode[];
+  episodes:         ConsumetEpisode[];
   currentEpisodeId?: string;
-  onSelectEpisode: (episode: ConsumetEpisode) => void;
-  animeTitle?: string;
+  onSelectEpisode:  (episode: ConsumetEpisode) => void;
+  animeTitle?:      string;
 }
 
-export default function EpisodeList({ episodes, currentEpisodeId, onSelectEpisode, animeTitle }: EpisodeListProps) {
-  const [showAll, setShowAll] = useState(false);
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+const RANGE = 24;
 
-  const INITIAL_COUNT = 24;
-  const displayEpisodes = showAll ? episodes : episodes.slice(0, INITIAL_COUNT);
-  const hasMore = episodes.length > INITIAL_COUNT;
+export default function EpisodeList({ episodes, currentEpisodeId, onSelectEpisode, animeTitle }: EpisodeListProps) {
+  const [rangeIdx,  setRangeIdx]  = useState(0);
+  const activeRef = useRef<HTMLButtonElement>(null);
+
+  const totalRanges = Math.ceil(episodes.length / RANGE);
+  const ranges = Array.from({ length: totalRanges }, (_, i) => ({
+    label: `${i * RANGE + 1}–${Math.min((i + 1) * RANGE, episodes.length)}`,
+    start: i * RANGE,
+    end:   Math.min((i + 1) * RANGE, episodes.length),
+  }));
+
+  // Auto-jump to range containing current episode
+  useEffect(() => {
+    if (!currentEpisodeId) return;
+    const idx = episodes.findIndex(e => e.id === currentEpisodeId);
+    if (idx >= 0) setRangeIdx(Math.floor(idx / RANGE));
+  }, [currentEpisodeId, episodes]);
+
+  useEffect(() => {
+    activeRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [currentEpisodeId, rangeIdx]);
 
   if (!episodes.length) {
     return (
-      <div className="text-center py-12">
-        <p className="text-gray-400">No episodes available yet.</p>
+      <div className="py-12 text-center">
+        <Play className="w-10 h-10 text-gray-600 mx-auto mb-3" />
+        <p className="text-gray-400 text-sm">No episodes available yet.</p>
       </div>
     );
   }
 
+  const displayEps = episodes.slice(ranges[rangeIdx].start, ranges[rangeIdx].end);
+
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-400">{episodes.length} Episodes</p>
-        <div className="flex items-center gap-1 bg-white/5 rounded-lg p-1">
-          <button onClick={() => setViewMode("grid")} className={`px-3 py-1 text-xs rounded-md transition-all ${viewMode === "grid" ? "bg-purple-600 text-white" : "text-gray-400 hover:text-white"}`}>Grid</button>
-          <button onClick={() => setViewMode("list")} className={`px-3 py-1 text-xs rounded-md transition-all ${viewMode === "list" ? "bg-purple-600 text-white" : "text-gray-400 hover:text-white"}`}>List</button>
+      {/* Controls bar */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-gray-400 font-medium">{episodes.length} Episodes</span>
+
+          {/* Range selector */}
+          {totalRanges > 1 && (
+            <div className="flex items-center gap-1 flex-wrap">
+              {ranges.map((r, i) => (
+                <button
+                  key={i}
+                  onClick={() => setRangeIdx(i)}
+                  className={`text-xs px-2.5 py-1 rounded-lg font-medium transition-all ${
+                    i === rangeIdx
+                      ? "bg-violet-600 text-white shadow-lg shadow-violet-900/40"
+                      : "bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 border border-white/5"
+                  }`}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
+
       </div>
 
-      {/* Grid view */}
-      {viewMode === "grid" && (
-        <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
-          {displayEpisodes.map(ep => (
-            <button
-              key={ep.id}
-              onClick={() => onSelectEpisode(ep)}
-              className={`aspect-square rounded-lg text-sm font-medium transition-all duration-200 ${
-                ep.id === currentEpisodeId
-                  ? "bg-purple-600 text-white shadow-lg shadow-purple-900/50"
-                  : "bg-white/5 hover:bg-purple-600/30 text-gray-300 hover:text-white border border-white/5 hover:border-purple-500/30"
-              }`}
-            >
-              {ep.number}
-            </button>
-          ))}
+      <div className="space-y-1.5">
+          {displayEps.map(ep => {
+            const isActive = ep.id === currentEpisodeId;
+            return (
+              <button
+                key={ep.id}
+                ref={isActive ? activeRef : undefined}
+                onClick={() => onSelectEpisode(ep)}
+                className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all duration-200 text-left group ${
+                  isActive
+                    ? "bg-violet-600/15 border border-violet-500/30"
+                    : "bg-white/3 hover:bg-white/7 border border-white/4 hover:border-white/10"
+                }`}
+              >
+                {/* Thumbnail */}
+                <div className="relative w-[72px] h-[44px] rounded-lg overflow-hidden bg-white/5 flex-shrink-0">
+                  {ep.image ? (
+                    <Image src={ep.image} alt={ep.title || `Episode ${ep.number}`} fill className="object-cover" sizes="72px" />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <Play className="w-3.5 h-3.5 text-gray-600" />
+                    </div>
+                  )}
+                  {isActive && (
+                    <div className="absolute inset-0 bg-violet-600/50 flex items-center justify-center">
+                      <Play className="w-4 h-4 text-white fill-white" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Number badge */}
+                <span className={`flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold ${
+                  isActive ? "bg-violet-600 text-white" : "bg-white/8 text-gray-400 group-hover:bg-violet-600/20 group-hover:text-violet-300"
+                } transition-all`}>
+                  {ep.number}
+                </span>
+
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm font-medium truncate ${isActive ? "text-violet-300" : "text-gray-200 group-hover:text-white"} transition-colors`}>
+                    {ep.title && ep.title !== `Episode ${ep.number}` ? ep.title : `Episode ${ep.number}`}
+                  </p>
+                  {ep.description && (
+                    <p className="text-xs text-gray-500 truncate mt-0.5">{ep.description}</p>
+                  )}
+                </div>
+
+                <Play className={`w-4 h-4 flex-shrink-0 transition-colors ${isActive ? "text-violet-400 fill-violet-400" : "text-gray-600 group-hover:text-gray-400"}`} />
+              </button>
+            );
+          })}
         </div>
-      )}
 
-      {/* List view */}
-      {viewMode === "list" && (
-        <div className="space-y-2">
-          {displayEpisodes.map(ep => (
-            <button
-              key={ep.id}
-              onClick={() => onSelectEpisode(ep)}
-              className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all duration-200 text-left ${
-                ep.id === currentEpisodeId
-                  ? "bg-purple-600/20 border border-purple-500/40"
-                  : "bg-white/5 hover:bg-white/10 border border-white/5 hover:border-white/10"
-              }`}
-            >
-              {/* Thumbnail */}
-              <div className="relative w-20 h-12 rounded-lg overflow-hidden bg-[#1a1a35] flex-shrink-0">
-                {ep.image ? (
-                  <Image src={ep.image} alt={ep.title || `Episode ${ep.number}`} fill className="object-cover" sizes="80px" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <Play className="w-4 h-4 text-gray-600" />
-                  </div>
-                )}
-                {ep.id === currentEpisodeId && (
-                  <div className="absolute inset-0 bg-purple-600/40 flex items-center justify-center">
-                    <Play className="w-4 h-4 text-white fill-white" />
-                  </div>
-                )}
-              </div>
-
-              {/* Info */}
-              <div className="flex-1 min-w-0">
-                <p className={`text-sm font-medium truncate ${ep.id === currentEpisodeId ? "text-purple-300" : "text-gray-200"}`}>
-                  Episode {ep.number}{ep.title ? `: ${ep.title}` : ""}
-                </p>
-                {ep.description && (
-                  <p className="text-xs text-gray-500 truncate mt-0.5">{ep.description}</p>
-                )}
-              </div>
-
-              {/* Play icon */}
-              <Play className={`w-4 h-4 flex-shrink-0 ${ep.id === currentEpisodeId ? "text-purple-400 fill-purple-400" : "text-gray-600"}`} />
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Show more/less */}
-      {hasMore && (
-        <button
-          onClick={() => setShowAll(!showAll)}
-          className="w-full flex items-center justify-center gap-2 py-2.5 text-sm text-purple-400 hover:text-purple-300 bg-white/5 hover:bg-white/10 rounded-xl border border-white/5 hover:border-purple-500/20 transition-all"
-        >
-          {showAll ? (
-            <><ChevronUp className="w-4 h-4" /> Show Less</>
-          ) : (
-            <><ChevronDown className="w-4 h-4" /> Show All {episodes.length} Episodes</>
-          )}
-        </button>
-      )}
-
-      {/* animeTitle used to suppress TS warning */}
       <span className="hidden">{animeTitle}</span>
     </div>
   );
