@@ -189,7 +189,7 @@ export default function UniversalPlayer({
 
       <div className="flex items-center gap-2 text-xs text-gray-500">
         <Play className="w-3 h-3" />
-        <span>GogoAnime servers load fastest. Try fallback servers if a video won&apos;t play.</span>
+        <span>Switch servers if a video won&apos;t play.</span>
       </div>
     </div>
   );

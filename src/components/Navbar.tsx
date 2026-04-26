@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { Search, Menu, X, Tv2, ChevronRight, Flame, TrendingUp, Star, Sparkles, Layers } from "lucide-react";
+import { Search, Menu, X, ChevronRight, Flame, TrendingUp, Star, Sparkles, Layers } from "lucide-react";
 import { AniListAnime } from "@/types";
 import Image from "next/image";
 
@@ -101,9 +101,7 @@ export default function Navbar() {
 
             {/* Logo */}
             <Link href="/" className="flex items-center gap-2.5 group flex-shrink-0 mr-2">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-600 to-pink-600 flex items-center justify-center shadow-lg shadow-violet-900/50 group-hover:shadow-violet-500/50 transition-all duration-200">
-                <Tv2 className="w-5 h-5 text-white" />
-              </div>
+              <Image src="/AniAuz_Logo.png" alt="AniAuz" width={46} height={46} className="rounded-xl shadow-lg shadow-violet-900/50 transition-all duration-200 group-hover:shadow-violet-500/60 group-hover:scale-105" />
               <span className="text-xl font-bold gradient-text tracking-tight">AniAuz</span>
             </Link>
 
@@ -229,9 +227,7 @@ export default function Navbar() {
             {/* Header */}
             <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-white/5 flex-shrink-0">
               <Link href="/" className="flex items-center gap-2.5" onClick={() => setMenuOpen(false)}>
-                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-600 to-pink-600 flex items-center justify-center">
-                  <Tv2 className="w-4 h-4 text-white" />
-                </div>
+                <Image src="/AniAuz_Logo.png" alt="AniAuz" width={40} height={40} className="rounded-xl shadow-md shadow-violet-900/40" />
                 <span className="text-lg font-bold gradient-text">AniAuz</span>
               </Link>
               <button onClick={() => setMenuOpen(false)} className="w-9 h-9 flex items-center justify-center rounded-xl bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white transition-all">

@@ -7,11 +7,11 @@ import Footer from "@/components/Footer";
 const geist = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "AniAuz — Watch Anime Online Free",
+  title: "AniAuz",
   description: "Stream the latest and greatest anime online for free. Trending, popular, and seasonal anime all in one place.",
   keywords: "anime, streaming, watch anime, free anime, AniAuz",
   openGraph: {
-    title: "AniAuz — Watch Anime Online Free",
+    title: "AniAuz",
     description: "Stream the latest anime for free",
     type: "website",
   },
