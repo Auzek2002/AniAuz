@@ -91,6 +91,23 @@ export default function AnimePage() {
         }
       }
 
+      // Slug-guess fallback: derive slug directly from title when search fails.
+      // "Attack on Titan" → "attack-on-titan", matching anineko.to's slug convention.
+      const toSlug = (s: string) =>
+        s.toLowerCase().replace(/[^a-z0-9\s]/g, "").trim().replace(/\s+/g, "-");
+      const slugCandidates = [...new Set([toSlug(english), toSlug(romaji)].filter(Boolean))];
+      for (const slug of slugCandidates) {
+        try {
+          const epRes  = await fetch(`/api/episodes/${encodeURIComponent(slug)}`);
+          const epData = await epRes.json();
+          const eps: Episode[] = (epData.episodes || []).map(
+            (e: { episodeId: string; number: number; title?: string }) =>
+              ({ id: e.episodeId, number: e.number, title: e.title })
+          );
+          if (eps.length > 0) { setEpisodes(eps); return; }
+        } catch { /* try next candidate */ }
+      }
+
       if (animeData.episodes) {
         setEpisodes(Array.from({ length: animeData.episodes }, (_, i) => ({ id: `unavailable-${i + 1}`, number: i + 1 })));
         setEpisodeError("Could not find this anime on the streaming source.");
